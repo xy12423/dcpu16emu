@@ -153,7 +153,6 @@
   <ItemGroup>
     <ClCompile Include="cpu.cpp" />
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="plugin_api.cpp" />
     <ClCompile Include="selector.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>

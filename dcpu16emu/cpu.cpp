@@ -82,6 +82,86 @@ int dcpu16::pop_itr(uint16_t &_int)
 	return _ERR_EMU_NOERR;
 }
 
+bool dcpu16::set_reg(int reg_id, uint16_t val)
+{
+	if (reg_id < 0 || reg_id > REG_IA)
+		return false;
+	switch (reg_id)
+	{
+		case REG_PC:
+			pc = val;
+			break;
+		case REG_SP:
+			sp = val;
+			break;
+		case REG_EX:
+			ex = val;
+			break;
+		case REG_IA:
+			ia = val;
+			break;
+		default:
+			reg[reg_id] = val;
+	}
+	return true;
+}
+
+bool dcpu16::set_mem(uint16_t ptr, uint16_t val)
+{
+	if (!mem)
+		return false;
+	mem[ptr] = val;
+	return true;
+}
+
+bool dcpu16::get_reg(int reg_id, uint16_t& ret)
+{
+	if (reg_id < 0 || reg_id > REG_IA)
+		return false;
+	switch (reg_id)
+	{
+		case REG_PC:
+			ret = pc;
+			break;
+		case REG_SP:
+			ret = sp;
+			break;
+		case REG_EX:
+			ret = ex;
+			break;
+		case REG_IA:
+			ret = ia;
+			break;
+		default:
+			ret = reg[reg_id];
+	}
+	return true;
+}
+
+bool dcpu16::get_mem(uint16_t ptr, uint16_t& ret)
+{
+	if (!mem)
+		return false;
+	ret = mem[ptr];
+	return true;
+}
+
+void dcpu16::run()
+{
+	running = true;
+	while (running)
+	{
+		step();
+		std::shared_ptr<dcpu16_callback> _callback = callback;
+		(*_callback)();
+	}
+}
+
+void dcpu16::stop()
+{
+	running = false;
+}
+
 int dcpu16::step()
 {
 	opcode code = mem[pc++];
@@ -92,12 +172,12 @@ int dcpu16::step()
 	}
 
 	int cycle = do_3(code);
-	if (cycle == -1)
-		return _ERR_EMU_OTHER;
+	if (cycle < _ERR_EMU_NOERR)
+		return cycle;
 	if (int_enabled)
 	{
 		uint16_t int_val = 0;
-		if (ia != 0 && pop_itr(int_val) != _ERR_EMU_ITR_EMPTY)
+		if (ia != 0 && pop_itr(int_val) == _ERR_EMU_NOERR)
 		{
 			int_enabled = false;
 			mem[--sp] = pc;
@@ -113,7 +193,7 @@ int dcpu16::do_1(const opcode& code)
 {
 	uint16_t op = code.a;
 	if (op == 0)
-		return -1;
+		return -_ERR_EMU_UNRECOGNIZED;
 
 	int cycle = -1;
 	switch (op)
@@ -132,7 +212,7 @@ int dcpu16::do_1(const opcode& code)
 			cycle = 4;
 			break;
 		default:
-			return -1;
+			return -_ERR_EMU_UNRECOGNIZED;
 	}
 	return cycle;
 }
@@ -146,7 +226,7 @@ int dcpu16::do_2(const opcode& code)
 	operand a_real;
 	int cycle = read_a(code.a, a_real);
 	if (cycle < 0)
-		return _ERR_EMU_READ;
+		return -_ERR_EMU_READ;
 
 	uint16_t a = a_real.get(this);
 	switch (op)
@@ -206,7 +286,7 @@ int dcpu16::do_2(const opcode& code)
 				cycle += (4 + hw_table[a].interrupt());
 			break;
 		default:
-			return -1;
+			return -_ERR_EMU_UNRECOGNIZED;
 	}
 	return cycle;
 }
@@ -220,11 +300,11 @@ int dcpu16::do_3(const opcode& code)
 	int cycle_t, cycle = 0;
 	cycle_t = read_b(code.b, b_real);
 	if (cycle_t < 0)
-		return _ERR_EMU_READ;
+		return -_ERR_EMU_READ;
 	cycle += cycle_t;
 	cycle_t = read_a(code.a, a_real);
 	if (cycle_t < 0)
-		return _ERR_EMU_READ;
+		return -_ERR_EMU_READ;
 	cycle += cycle_t;
 
 	uint32_t res = 0;
@@ -389,10 +469,10 @@ int dcpu16::do_3(const opcode& code)
 			cycle += 2;
 			break;
 		default:
-			return -1;
+			return -_ERR_EMU_UNRECOGNIZED;
 	}
 
 	if (write_b(code.b, b_real, static_cast<uint16_t>(res)) != 0)
-		return _ERR_EMU_WRITE;
+		return -_ERR_EMU_WRITE;
 	return cycle;
 }

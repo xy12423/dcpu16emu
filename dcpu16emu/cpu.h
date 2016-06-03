@@ -8,6 +8,8 @@
 class dcpu16
 {
 public:
+	typedef std::function<void()> dcpu16_callback;
+
 	enum registers
 	{
 		REG_A,
@@ -18,6 +20,11 @@ public:
 		REG_Z,
 		REG_I,
 		REG_J,
+
+		REG_PC,
+		REG_SP,
+		REG_EX,
+		REG_IA,
 	};
 
 	struct opcode
@@ -57,7 +64,6 @@ public:
 		uint16_t a, b, c, x, y;
 		fHWInt interrupt;
 	};
-	static const hardware hd_empty;
 
 	typedef uint16_t(__cdecl *fGetHWCount)();
 	typedef hardware(__cdecl *fGetInfo)(int n);
@@ -67,20 +73,36 @@ public:
 	enum emu_err
 	{
 		_ERR_EMU_NOERR,
+		_ERR_EMU_OTHER,
+
 		_ERR_EMU_READ,
 		_ERR_EMU_WRITE,
-		_ERR_EMU_OTHER,
+		_ERR_EMU_UNRECOGNIZED,
+
 		_ERR_EMU_ITR_EMPTY,
 		_ERR_EMU_ITR_OVERFLOW,
+
 		_ERR_EMU_EXP_MEMOVFL
 	};
 
 	dcpu16();
 
 	void run();
+	void stop();
+
 	int step();
 
+	bool set_reg(int reg_id, uint16_t val);
+	bool set_mem(uint16_t ptr, uint16_t val);
+	bool get_reg(int reg_id, uint16_t& ret);
+	bool get_mem(uint16_t ptr, uint16_t& ret);
+	void set_callback(dcpu16_callback&& _callback) { callback = std::make_shared<dcpu16_callback>(_callback); };
+
+	bool pcOf = false;
+
 private:
+	static const hardware hd_empty;
+
 	int do_3(const opcode& code);
 	int do_2(const opcode& code);
 	int do_1(const opcode& code);
@@ -98,12 +120,15 @@ private:
 	std::unique_ptr<uint16_t[]> mem;
 	uint16_t reg[8];
 	uint32_t pc;
-	bool pcOf = false;
 	uint16_t sp, ex, ia;
 	uint16_t int_que[256];
 	uint8_t int_begin = 0, int_end = 0;
 	bool int_enabled = true;
 	std::vector<hardware> hw_table;
+
+	volatile bool running = false;
+
+	std::shared_ptr<dcpu16_callback> callback;
 };
 
 #endif // _H_EMU

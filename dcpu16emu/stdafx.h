@@ -18,6 +18,8 @@
 #include <unordered_map>
 
 #include <algorithm>
+#include <atomic>
+#include <chrono>
 #include <functional>
 #include <future>
 #include <memory>

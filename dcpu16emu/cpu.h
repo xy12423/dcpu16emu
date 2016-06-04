@@ -8,8 +8,6 @@
 class dcpu16
 {
 public:
-	typedef std::function<void()> dcpu16_callback;
-
 	enum registers
 	{
 		REG_A,
@@ -27,9 +25,9 @@ public:
 		REG_IA,
 	};
 
-	struct opcode
+	struct instruction
 	{
-		opcode(uint16_t code)
+		instruction(uint16_t code)
 			:op(code & 0x1F), b((code >> 5) & 0x1F), a(code >> 10)
 		{}
 		operator uint16_t()
@@ -87,25 +85,19 @@ public:
 
 	dcpu16();
 
-	void run();
-	void stop();
-
 	int step();
 
 	bool set_reg(int reg_id, uint16_t val);
 	bool set_mem(uint16_t ptr, uint16_t val);
 	bool get_reg(int reg_id, uint16_t& ret);
 	bool get_mem(uint16_t ptr, uint16_t& ret);
-	void set_callback(dcpu16_callback&& _callback) { callback = std::make_shared<dcpu16_callback>(_callback); };
 
 	bool pcOf = false;
 
 private:
-	static const hardware hd_empty;
-
-	int do_3(const opcode& code);
-	int do_2(const opcode& code);
-	int do_1(const opcode& code);
+	int do_3(const instruction& ins);
+	int do_2(const instruction& ins);
+	int do_1(const instruction& ins);
 
 	int read_a(uint8_t a, operand& val);
 	int read_b(uint8_t b, operand& val);
@@ -125,10 +117,6 @@ private:
 	uint8_t int_begin = 0, int_end = 0;
 	bool int_enabled = true;
 	std::vector<hardware> hw_table;
-
-	volatile bool running = false;
-
-	std::shared_ptr<dcpu16_callback> callback;
 };
 
 #endif // _H_EMU

@@ -23,10 +23,10 @@ bool _skip_incpc[0x40] = {
 
 void dcpu16::skipsingle()
 {
-	opcode code = mem[pc++];
-	if (_skip_incpc[code.a])
+	instruction ins = mem[pc++];
+	if (_skip_incpc[ins.a])
 		pc++;
-	if (_skip_incpc[code.b])
+	if (_skip_incpc[ins.b])
 		pc++;
 	if (pc > 0xFFFF)
 	{
@@ -37,25 +37,25 @@ void dcpu16::skipsingle()
 
 int dcpu16::skip()
 {
-	opcode code = mem[pc++];
+	instruction ins = mem[pc++];
 	int ret = 0;
-	while (0x10 <= code.op && code.op <= 0x17)
+	while (0x10 <= ins.op && ins.op <= 0x17)
 	{
-		if (_skip_incpc[code.a])
+		if (_skip_incpc[ins.a])
 			pc++;
-		if (_skip_incpc[code.b])
+		if (_skip_incpc[ins.b])
 			pc++;
 		if (pc > 0xFFFF)
 		{
 			pcOf = true;
 			pc = static_cast<uint16_t>(pc);
 		}
-		code = mem[pc++];
+		ins = mem[pc++];
 		ret++;
 	}
-	if (_skip_incpc[code.a])
+	if (_skip_incpc[ins.a])
 		pc++;
-	if (_skip_incpc[code.b])
+	if (_skip_incpc[ins.b])
 		pc++;
 	if (pc > 0xFFFF)
 	{
@@ -146,25 +146,9 @@ bool dcpu16::get_mem(uint16_t ptr, uint16_t& ret)
 	return true;
 }
 
-void dcpu16::run()
-{
-	running = true;
-	while (running)
-	{
-		step();
-		std::shared_ptr<dcpu16_callback> _callback = callback;
-		(*_callback)();
-	}
-}
-
-void dcpu16::stop()
-{
-	running = false;
-}
-
 int dcpu16::step()
 {
-	opcode code = mem[pc++];
+	instruction code = mem[pc++];
 	if (pc > 0xFFFF)
 	{
 		pcOf = true;
@@ -189,9 +173,9 @@ int dcpu16::step()
 	return cycle;
 }
 
-int dcpu16::do_1(const opcode& code)
+int dcpu16::do_1(const instruction& ins)
 {
-	uint16_t op = code.a;
+	uint16_t op = ins.a;
 	if (op == 0)
 		return -_ERR_EMU_UNRECOGNIZED;
 
@@ -217,14 +201,14 @@ int dcpu16::do_1(const opcode& code)
 	return cycle;
 }
 
-int dcpu16::do_2(const opcode& code)
+int dcpu16::do_2(const instruction& ins)
 {
-	uint8_t op = code.b;
+	uint8_t op = ins.b;
 	if (op == 0)
-		return do_1(code);
+		return do_1(ins);
 
 	operand a_real;
-	int cycle = read_a(code.a, a_real);
+	int cycle = read_a(ins.a, a_real);
 	if (cycle < 0)
 		return -_ERR_EMU_READ;
 
@@ -246,7 +230,7 @@ int dcpu16::do_2(const opcode& code)
 			cycle += 4;
 			break;
 		case 0x09:
-			write_b(code.a, a_real, ia);
+			write_b(ins.a, a_real, ia);
 			cycle += 1;
 			break;
 		case 0x0A:
@@ -267,7 +251,7 @@ int dcpu16::do_2(const opcode& code)
 			cycle += 2;
 			break;
 		case 0x10:
-			write_b(code.a, a_real, static_cast<uint16_t>(hw_table.size()));
+			write_b(ins.a, a_real, static_cast<uint16_t>(hw_table.size()));
 			cycle += 2;
 			break;
 		case 0x11:
@@ -291,25 +275,25 @@ int dcpu16::do_2(const opcode& code)
 	return cycle;
 }
 
-int dcpu16::do_3(const opcode& code)
+int dcpu16::do_3(const instruction& ins)
 {
-	if (code.op == 0x00)
-		return do_2(code);
+	if (ins.op == 0x00)
+		return do_2(ins);
 
 	operand a_real, b_real;
 	int cycle_t, cycle = 0;
-	cycle_t = read_b(code.b, b_real);
+	cycle_t = read_b(ins.b, b_real);
 	if (cycle_t < 0)
 		return -_ERR_EMU_READ;
 	cycle += cycle_t;
-	cycle_t = read_a(code.a, a_real);
+	cycle_t = read_a(ins.a, a_real);
 	if (cycle_t < 0)
 		return -_ERR_EMU_READ;
 	cycle += cycle_t;
 
 	uint32_t res = 0;
 	uint16_t a = a_real.get(this), b = b_real.get(this);
-	switch (code.op)
+	switch (ins.op)
 	{
 		case 0x01:
 			res = a;
@@ -472,7 +456,7 @@ int dcpu16::do_3(const opcode& code)
 			return -_ERR_EMU_UNRECOGNIZED;
 	}
 
-	if (write_b(code.b, b_real, static_cast<uint16_t>(res)) != 0)
+	if (write_b(ins.b, b_real, static_cast<uint16_t>(res)) != 0)
 		return -_ERR_EMU_WRITE;
 	return cycle;
 }

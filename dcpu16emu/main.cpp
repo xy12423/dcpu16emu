@@ -1,6 +1,11 @@
 #include "stdafx.h"
 #include "cpu.h"
+#include "utils.h"
 #include "main.h"
+
+const std::string empty_string;
+
+dcpu16 cpu;
 
 volatile bool running = false;
 std::atomic_int cycles_available = 0;
@@ -19,7 +24,7 @@ void run_worker()
 		int cycle = cpu.step();
 		if (cycle < 0)
 		{
-			std::cout << "  ^ Error" << std::endl;
+			std::cout << "\t^ Error" << std::endl;
 			running = false;
 			return;
 		}
@@ -49,8 +54,8 @@ void timer()
 void dump(const std::string& arg)
 {
 	static uint32_t add = 0;
-	if (arg != "")
-		add = static_cast<uint32_t>(std::stoul(arg));
+	if (!arg.empty())
+		add = static_cast<uint32_t>(std::stoul(arg, 0, 0));
 	int i, j;
 	for (i = 0; i < 8; i++)
 	{
@@ -64,8 +69,8 @@ void dump(const std::string& arg)
 			if (add >= 0x10000)
 			{
 				add = 0;
-				std::cout << std::endl;
-				return;
+				i = 7;
+				break;
 			}
 		}
 		std::cout << std::endl;
@@ -73,17 +78,38 @@ void dump(const std::string& arg)
 	return;
 }
 
-void enter(int argc, const std::vector<std::string>& args)
+void enter(std::vector<std::string>::iterator begin, const std::vector<std::string>::iterator& end)
 {
-	if (argc < 1)
-	{
-		std::cout << "  ^ Error" << std::endl;
+	uint32_t add = static_cast<uint32_t>(std::stoul(*begin++, 0, 0));
+	if (begin == end)
 		return;
-	}
-	uint32_t add = static_cast<uint32_t>(stoul(args[0]));
-	for (int i = 1; i < argc && add < 0x10000; i++)
-		cpu.set_mem(add++, static_cast<uint16_t>(stoul(args[i])));
+	for (; begin != end && add < 0x10000; begin++)
+		cpu.set_mem(add++, static_cast<uint16_t>(std::stoul(*begin, 0, 0)));
 	return;
+}
+
+void load(const std::string& path)
+{
+	std::ofstream fout(path, std::ios::out | std::ios::binary);
+	uint16_t val;
+	for (uint32_t add = 0; add < 0x10000; add++)
+	{
+		cpu.get_mem(add, val);
+		fout.write(reinterpret_cast<char*>(&val), sizeof(val));
+	}
+	fout.close();
+}
+
+void save(const std::string& path)
+{
+	std::ifstream fin(path, std::ios::in | std::ios::binary);
+	uint16_t val;
+	for (uint32_t add = 0; add < 0x10000; add++)
+	{
+		fin.read(reinterpret_cast<char*>(&val), sizeof(val));
+		cpu.set_mem(add, val);
+	}
+	fin.close();
 }
 
 void run()
@@ -97,6 +123,108 @@ void run()
 
 int main()
 {
-	
+	std::string cmd;
+	std::vector<std::string> argv;
+	bool exiting = false;
+	while (!exiting)
+	{
+		while (true)
+		{
+			std::cout << '-';
+			std::getline(std::cin, cmd);
+			trim(cmd);
+			if (cmd.length() >= 1)
+				break;
+		}
+		argv.clear();
+		try
+		{
+			cmd.push_back(' ');
+			int state = 0;
+			std::string::iterator itr = cmd.begin(), itr2 = cmd.begin(), itr_end = cmd.end();
+
+			for (; itr2 != itr_end; itr2++)
+			{
+				if (state == 0 && *itr2 != ' ')
+				{
+					if (*itr2 == '"')
+					{
+						state = 2;
+						itr = itr2 + 1;
+					}
+					else
+					{
+						state = 1;
+						itr = itr2;
+					}
+				}
+				else if (state == 1 && *itr2 == ' ')
+				{
+					state = 0;
+					argv.push_back(std::string(itr, itr2));
+				}
+				else if (state == 2 && *itr2 == '"')
+				{
+					state = 3;
+					argv.push_back(std::string(itr, itr2));
+				}
+				else if (state == 3)
+				{
+					if (*itr2 != ' ')
+						break;
+					state = 0;
+				}
+			}
+			if (state != 0)
+				throw(state);
+		}
+		catch (int) { std::cout << "\t^ Error" << std::endl; continue; }
+
+		if (argv.empty() || argv[0].size() != 1)
+		{
+			std::cout << "\t^ Error" << std::endl;
+			continue;
+		}
+		switch (tolower(argv[0].front()))
+		{
+			case 'q':
+				exiting = true;
+				break;
+			case 'd':
+				if (argv.size() < 2)
+					dump(empty_string);
+				else
+					dump(argv[1]);
+				break;
+			case 'e':
+				if (argv.size() < 2)
+					std::cout << "\t^ Error" << std::endl;
+				else
+					enter(argv.begin() + 1, argv.end());
+				break;
+			case 'l':
+				if (argv.size() < 2)
+					std::cout << "\t^ Error" << std::endl;
+				else
+					load(argv[1]);
+				break;
+			case 's':
+				if (argv.size() < 2)
+					std::cout << "\t^ Error" << std::endl;
+				else
+					save(argv[1]);
+				break;
+			case 'r':
+				run();
+				getchar();
+				running = false;
+				break;
+			case 't':
+				if (cpu.step() < 0)
+					std::cout << "\t^ Error" << std::endl;
+			default:
+				std::cout << "\t^ Error" << std::endl;
+		}
+	}
     return 0;
 }

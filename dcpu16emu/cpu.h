@@ -1,10 +1,6 @@
 #ifndef _H_EMU
 #define _H_EMU
 
-#ifdef __GNUC__
-#define _cdecl/* __attribute__((cdecl)) */
-#endif
-
 class dcpu16
 {
 public:
@@ -57,30 +53,30 @@ public:
 
 	struct hardware
 	{
-		typedef uint16_t(__cdecl *fHWInt)();
+		typedef uint16_t(*fHWInt)();
 
 		uint16_t a, b, c, x, y;
 		fHWInt interrupt;
 	};
 
-	typedef uint16_t(__cdecl *fGetHWCount)();
-	typedef hardware(__cdecl *fGetInfo)(int n);
-	typedef void(__cdecl *fSetHandle)(void *, void *, void *, void *, void *);
-	typedef uint32_t(__cdecl *fInit)();
+	typedef uint16_t(*fGetHWCount)();
+	typedef hardware(*fGetInfo)(int n);
+	typedef void(*fSetHandle)(void *, void *, void *, void *, void *);
+	typedef uint32_t(*fInit)();
 
 	enum emu_err
 	{
-		_ERR_EMU_NOERR,
-		_ERR_EMU_OTHER,
+		ERR_EMU_NOERR,
+		ERR_EMU_OTHER,
 
-		_ERR_EMU_READ,
-		_ERR_EMU_WRITE,
-		_ERR_EMU_UNRECOGNIZED,
+		ERR_EMU_READ,
+		ERR_EMU_WRITE,
+		ERR_EMU_UNRECOGNIZED,
 
-		_ERR_EMU_ITR_EMPTY,
-		_ERR_EMU_ITR_OVERFLOW,
+		ERR_EMU_ITR_EMPTY,
+		ERR_EMU_ITR_OVERFLOW,
 
-		_ERR_EMU_EXP_MEMOVFL
+		ERR_EMU_EXP_MEMOVFL
 	};
 
 	dcpu16();

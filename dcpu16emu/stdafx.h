@@ -12,6 +12,7 @@
 
 #include <list>
 #include <vector>
+#include <deque>
 #include <string>
 #include <set>
 #include <map>

@@ -69,17 +69,17 @@ int dcpu16::skip()
 int dcpu16::add_itr(uint16_t _int)
 {
 	if (int_begin == static_cast<uint8_t>(int_end - 1))
-		return _ERR_EMU_ITR_OVERFLOW;
+		return ERR_EMU_ITR_OVERFLOW;
 	int_que[int_end++] = _int;
-	return _ERR_EMU_NOERR;
+	return ERR_EMU_NOERR;
 }
 
 int dcpu16::pop_itr(uint16_t &_int)
 {
 	if (int_begin == int_end)
-		return _ERR_EMU_ITR_EMPTY;
+		return ERR_EMU_ITR_EMPTY;
 	_int = int_que[int_begin++];
-	return _ERR_EMU_NOERR;
+	return ERR_EMU_NOERR;
 }
 
 bool dcpu16::set_reg(int reg_id, uint16_t val)
@@ -156,12 +156,12 @@ int dcpu16::step()
 	}
 
 	int cycle = do_3(code);
-	if (cycle < _ERR_EMU_NOERR)
+	if (cycle < ERR_EMU_NOERR)
 		return cycle;
 	if (int_enabled)
 	{
 		uint16_t int_val = 0;
-		if (ia != 0 && pop_itr(int_val) == _ERR_EMU_NOERR)
+		if (ia != 0 && pop_itr(int_val) == ERR_EMU_NOERR)
 		{
 			int_enabled = false;
 			mem[--sp] = pc;
@@ -177,7 +177,7 @@ int dcpu16::do_1(const instruction& ins)
 {
 	uint16_t op = ins.a;
 	if (op == 0)
-		return -_ERR_EMU_UNRECOGNIZED;
+		return -ERR_EMU_UNRECOGNIZED;
 
 	int cycle = -1;
 	switch (op)
@@ -196,7 +196,7 @@ int dcpu16::do_1(const instruction& ins)
 			cycle = 4;
 			break;
 		default:
-			return -_ERR_EMU_UNRECOGNIZED;
+			return -ERR_EMU_UNRECOGNIZED;
 	}
 	return cycle;
 }
@@ -210,7 +210,7 @@ int dcpu16::do_2(const instruction& ins)
 	operand a_real;
 	int cycle = read_a(ins.a, a_real);
 	if (cycle < 0)
-		return -_ERR_EMU_READ;
+		return -ERR_EMU_READ;
 
 	uint16_t a = a_real.get(this);
 	switch (op)
@@ -270,7 +270,7 @@ int dcpu16::do_2(const instruction& ins)
 				cycle += (4 + hw_table[a].interrupt());
 			break;
 		default:
-			return -_ERR_EMU_UNRECOGNIZED;
+			return -ERR_EMU_UNRECOGNIZED;
 	}
 	return cycle;
 }
@@ -284,11 +284,11 @@ int dcpu16::do_3(const instruction& ins)
 	int cycle_t, cycle = 0;
 	cycle_t = read_b(ins.b, b_real);
 	if (cycle_t < 0)
-		return -_ERR_EMU_READ;
+		return -ERR_EMU_READ;
 	cycle += cycle_t;
 	cycle_t = read_a(ins.a, a_real);
 	if (cycle_t < 0)
-		return -_ERR_EMU_READ;
+		return -ERR_EMU_READ;
 	cycle += cycle_t;
 
 	uint32_t res = 0;
@@ -453,10 +453,212 @@ int dcpu16::do_3(const instruction& ins)
 			cycle += 2;
 			break;
 		default:
-			return -_ERR_EMU_UNRECOGNIZED;
+			return -ERR_EMU_UNRECOGNIZED;
 	}
 
 	if (write_b(ins.b, b_real, static_cast<uint16_t>(res)) != 0)
-		return -_ERR_EMU_WRITE;
+		return -ERR_EMU_WRITE;
 	return cycle;
+}
+
+int dcpu16::read_a(uint8_t a, operand& val)
+{
+	if (a > 0x3F)
+		return -1;
+
+	int cycle = 0;
+	val.type = operand::VAL;
+	if (0x0 <= a && a <= 0x7)
+		val.val = reg[a];
+	else if (0x8 <= a && a <= 0xF)
+	{
+		val.type = operand::PTR;
+		val.val = reg[a - 0x8];
+	}
+	else if (0x10 <= a && a <= 0x17)
+	{
+		val.type = operand::PTR;
+		val.val = static_cast<uint16_t>(reg[a - 0x10] + mem[pc++]);
+		if (pc > 0xFFFF)
+		{
+			pcOf = true;
+			pc = static_cast<uint16_t>(pc);
+		}
+		cycle = 1;
+	}
+	else if (0x20 <= a && a <= 0x3F)
+		val.val = a - 0x21;
+	else
+	{
+		switch (a)
+		{
+			case 0x18:
+				val.val = mem[sp++];
+				break;
+			case 0x19:
+				val.val = mem[sp];
+				break;
+			case 0x1A:
+				val.type = operand::PTR;
+				val.val = static_cast<uint16_t>(sp + mem[pc++]);
+				if (pc > 0xFFFF)
+				{
+					pcOf = true;
+					pc = static_cast<uint16_t>(pc);
+				}
+				cycle = 1;
+				break;
+			case 0x1B:
+				val.val = sp;
+				break;
+			case 0x1C:
+				val.val = pc;
+				break;
+			case 0x1D:
+				val.val = ex;
+				break;
+			case 0x1E:
+				val.type = operand::PTR;
+				val.val = mem[pc++];
+				if (pc > 0xFFFF)
+				{
+					pcOf = true;
+					pc = static_cast<uint16_t>(pc);
+				}
+				cycle = 1;
+				break;
+			case 0x1F:
+				val.val = mem[pc++];
+				if (pc > 0xFFFF)
+				{
+					pcOf = true;
+					pc = static_cast<uint16_t>(pc);
+				}
+				cycle = 1;
+				break;
+			default:
+				return -1;
+		}
+	}
+	return cycle;
+}
+
+int dcpu16::read_b(uint8_t b, operand& val)
+{
+	if (b > 0x1F)
+		return -1;
+
+	int cycle = 0;
+	val.type = operand::VAL;
+	if (0x0 <= b && b <= 0x7)
+		val.val = reg[b];
+	else if (0x8 <= b && b <= 0xF)
+	{
+		val.type = operand::PTR;
+		val.val = reg[b - 0x8];
+	}
+	else if (0x10 <= b && b <= 0x17)
+	{
+		val.type = operand::PTR;
+		val.val = static_cast<uint16_t>(reg[b - 0x10] + mem[pc++]);
+		if (pc > 0xFFFF)
+		{
+			pcOf = true;
+			pc = static_cast<uint16_t>(pc);
+		}
+		cycle = 1;
+	}
+	else
+	{
+		switch (b)
+		{
+			case 0x18:
+				val.val = mem[sp];
+				break;
+			case 0x19:
+				val.val = mem[sp];
+				break;
+			case 0x1A:
+				val.type = operand::PTR;
+				val.val = static_cast<uint16_t>(sp + mem[pc++]);
+				if (pc > 0xFFFF)
+				{
+					pcOf = true;
+					pc = static_cast<uint16_t>(pc);
+				}
+				cycle = 1;
+				break;
+			case 0x1B:
+				val.val = sp;
+				break;
+			case 0x1C:
+				val.val = pc;
+				break;
+			case 0x1D:
+				val.val = ex;
+				break;
+			case 0x1E:
+				val.type = operand::PTR;
+				val.val = mem[pc++];
+				if (pc > 0xFFFF)
+				{
+					pcOf = true;
+					pc = static_cast<uint16_t>(pc);
+				}
+				cycle = 1;
+				break;
+			case 0x1F:
+				val.val = mem[pc++];
+				if (pc > 0xFFFF)
+				{
+					pcOf = true;
+					pc = static_cast<uint16_t>(pc);
+				}
+				cycle = 1;
+				break;
+			default:
+				return -1;
+		}
+	}
+	return cycle;
+}
+
+int dcpu16::write_b(uint8_t b, const operand& old, uint16_t val)
+{
+	if (b > 0x1F)
+		return -1;
+
+	if (0x0 <= b && b <= 0x7)
+		reg[b] = val;
+	else if (0x8 <= b && b <= 0x17)
+		mem[old.val] = val;
+	else
+	{
+		switch (b)
+		{
+			case 0x18:
+				mem[--sp] = val;
+				break;
+			case 0x19:
+				mem[sp] = val;
+				break;
+			case 0x1A:
+				mem[old.val] = val;
+				break;
+			case 0x1B:
+				sp = val;
+				break;
+			case 0x1C:
+				pc = val;
+				break;
+			case 0x1D:
+				ex = val;
+				break;
+			case 0x1E:
+				mem[old.val] = val;
+			default:
+				return -1;
+		}
+	}
+	return 0;
 }

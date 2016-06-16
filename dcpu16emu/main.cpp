@@ -1,14 +1,16 @@
 #include "stdafx.h"
 #include "cpu.h"
+#include "asm.h"
 #include "utils.h"
 #include "main.h"
 
 const std::string empty_string;
 
 dcpu16 cpu;
+dcpu16_asm assembler;
 
 volatile bool running = false;
-std::atomic_int cycles_available = 0;
+std::atomic_int cycles_available(0);
 std::shared_ptr<std::promise<void>> cycle_promise;
 
 void run_worker()
@@ -32,15 +34,15 @@ void run_worker()
 	}
 }
 
-void timer()
+void run_timer()
 {
 	auto time = std::chrono::high_resolution_clock::now();
 
 	const size_t cycles_per_sec = 100000;
-	const intmax_t lcm = std::_Lcm<cycles_per_sec, std::chrono::high_resolution_clock::period::den>::value;
+	const intmax_t lcm = _lcm<cycles_per_sec, std::chrono::high_resolution_clock::period::den>::value;
 	const size_t cycles_per_tick = std::chrono::high_resolution_clock::period::num * (lcm / std::chrono::high_resolution_clock::period::den);
 	const std::chrono::high_resolution_clock::duration interval(lcm / cycles_per_sec);
-	
+
 	while (running)
 	{
 		cycles_available += cycles_per_tick;
@@ -78,6 +80,54 @@ void dump(const std::string& arg)
 	return;
 }
 
+void registers()
+{
+	uint16_t reg[12];
+	for (int i = 0; i < 12; i++)
+		cpu.get_reg(i, reg[i]);
+	printf("A=%04X\tB=%04X\tC=%04X\tX=%04X\tY=%04X\tZ=%04X\tI=%04X\tJ=%04X\t", reg[0], reg[1], reg[2], reg[3], reg[4], reg[5], reg[6], reg[7]);
+	std::cout << std::endl;
+	printf("PC=%04X\tSP=%04X\tEX=%04X\tIA=%04X\t", reg[8], reg[9], reg[10], reg[11]);
+	std::cout << std::endl;
+}
+
+void unasm(int32_t _add = -1)
+{
+	static uint16_t add = 0;
+	if (_add != -1)
+		add = static_cast<uint16_t>(_add);
+
+	uint16_t end = add + 0x40, val;
+	unsigned int tmp;
+	std::string ins;
+	for (; add < end; )
+	{
+		tmp = add;
+		printf("%04X:", tmp);
+		for (; assembler.size() < 3; add++)
+		{
+			cpu.get_mem(add, val);
+			if (val == 0)
+				break;
+			assembler.write(&val, 1);
+		}
+		ins.clear();
+		assembler.read(ins);
+		if (assembler.gcount() != 0)
+		{
+			std::cout << ins << std::endl;
+		}
+		else
+		{
+			std::cout << std::endl;
+			break;
+		}
+		if (val == 0)
+			break;
+	}
+	assembler.clear();
+}
+
 void enter(std::vector<std::string>::iterator begin, const std::vector<std::string>::iterator& end)
 {
 	uint32_t add = static_cast<uint32_t>(std::stoul(*begin++, 0, 0));
@@ -90,18 +140,6 @@ void enter(std::vector<std::string>::iterator begin, const std::vector<std::stri
 
 void load(const std::string& path)
 {
-	std::ofstream fout(path, std::ios::out | std::ios::binary);
-	uint16_t val;
-	for (uint32_t add = 0; add < 0x10000; add++)
-	{
-		cpu.get_mem(add, val);
-		fout.write(reinterpret_cast<char*>(&val), sizeof(val));
-	}
-	fout.close();
-}
-
-void save(const std::string& path)
-{
 	std::ifstream fin(path, std::ios::in | std::ios::binary);
 	uint16_t val;
 	for (uint32_t add = 0; add < 0x10000; add++)
@@ -112,13 +150,44 @@ void save(const std::string& path)
 	fin.close();
 }
 
-void run()
+void save(const std::string& path)
+{
+	std::ofstream fout(path, std::ios::out | std::ios::binary);
+	uint16_t val;
+	for (uint32_t add = 0; add < 0x10000; add++)
+	{
+		cpu.get_mem(add, val);
+		fout.write(reinterpret_cast<char*>(&val), sizeof(val));
+	}
+	fout.close();
+}
+
+void proceed()
 {
 	running = true;
-	std::thread timer_thread(timer);
+	std::thread timer_thread(run_timer);
 	timer_thread.detach();
 	std::thread worker_thread(run_worker);
 	worker_thread.detach();
+}
+
+void trace()
+{
+	if (cpu.step() < 1)
+	{
+		std::cout << "\t^ Error" << std::endl;
+		return;
+	}
+	std::string ins_str;
+	uint16_t ins[3], pc;
+	cpu.get_reg(dcpu16::REG_PC, pc);
+	for (int i = 0; i < 3; i++)
+		cpu.get_mem(pc + i, ins[i]);
+	assembler.write(ins, 3);
+	assembler.read(ins_str);
+	assembler.clear();
+	registers();
+	std::cout << "Next:" << ins << std::endl;
 }
 
 int main()
@@ -176,9 +245,9 @@ int main()
 				}
 			}
 			if (state != 0)
-				throw(state);
+				throw(std::runtime_error("\t^ Error"));
 		}
-		catch (int) { std::cout << "\t^ Error" << std::endl; continue; }
+		catch (std::exception &ex) { std::cout << ex.what() << std::endl; continue; }
 
 		if (argv.empty() || argv[0].size() != 1)
 		{
@@ -195,6 +264,24 @@ int main()
 					dump(empty_string);
 				else
 					dump(argv[1]);
+				break;
+			case 'r':
+				registers();
+				break;
+			case 'u':
+				if (argv.size() < 2)
+				{
+					unasm();
+				}
+				else
+				{
+					try
+					{
+						unasm(std::stoi(argv[1], 0, 0));
+					}
+					catch (std::out_of_range &) { std::cout << "\t^ Error" << std::endl; }
+					catch (std::invalid_argument &) { std::cout << "\t^ Error" << std::endl; }
+				}
 				break;
 			case 'e':
 				if (argv.size() < 2)
@@ -214,17 +301,17 @@ int main()
 				else
 					save(argv[1]);
 				break;
-			case 'r':
-				run();
+			case 'p':
+				proceed();
 				getchar();
 				running = false;
 				break;
 			case 't':
-				if (cpu.step() < 0)
-					std::cout << "\t^ Error" << std::endl;
+				trace();
+				break;
 			default:
 				std::cout << "\t^ Error" << std::endl;
 		}
 	}
-    return 0;
+	return 0;
 }

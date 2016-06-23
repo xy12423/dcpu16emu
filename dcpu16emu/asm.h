@@ -3,12 +3,6 @@
 
 #include "cpu.h"
 
-class dcpu16_asm_error :public std::runtime_error
-{
-public:
-	dcpu16_asm_error() :std::runtime_error("Internal assembler error") {}
-};
-
 class dcpu16_asm
 {
 public:
@@ -20,36 +14,55 @@ public:
 		ERR_ASM_UNRECOGNIZED,
 	};
 
-	inline void read(uint16_t* out, size_t size) {
-		uint16_t *p = out, *end = out + std::min(size, buffer.size());
-		for (; p < end; p++) {
-			*p = buffer.front();
-			buffer.pop_front();
-		};
-		last_io_size = p - out;
-	};
+	typedef std::ios_base::iostate iostate;
+	typedef std::deque<uint16_t> buf_type;
+
+	static constexpr iostate goodbit = std::ios_base::goodbit;
+	static constexpr iostate badbit = std::ios_base::badbit;
+	static constexpr iostate failbit = std::ios_base::failbit;
+	static constexpr iostate eofbit = std::ios_base::eofbit;
+	
+	inline void ignore(size_t size) { buffer.erase(buffer.begin(), buffer.begin() + std::min(size, buffer.size())); }
+
+	void read(uint16_t* out, size_t size);
 	void read(std::string& out);
 	void read(std::ostream& out);
 
-	inline void write(const uint16_t* in, size_t size) {
-		for (const uint16_t *p = in, *end = in + size; p < end; p++)
-			buffer.push_back(*p);
-		last_io_size = size;
-	};
+	void write(const uint16_t* in, size_t size);
 	void write(const std::string& in);
 	void write(std::istream& in);
 
-	void clear() { last_io_size = buffer.size(); buffer.clear(); }
-    size_t size() { return buffer.size(); }
+	const buf_type& rdbuf() const { return buffer; }
+	buf_type& rdbuf() { return buffer; }
+	void clear_buf() { buffer.clear(); }
+
+	void clear() { state = 0; }
+	bool good() const { return state == 0; }
+	bool bad() const { return (state & badbit) != 0; }
+	bool fail() const { return (state & failbit) != 0; }
+	bool eof() const { return (state & eofbit) != 0; }
+
 	size_t gcount() { return last_io_size; };
 private:
-	inline void read(uint16_t& out) { if (buffer.empty()) throw(dcpu16_asm_error()); out = buffer.front(); buffer.pop_front(); last_io_size += 1; };
-	inline void write(uint16_t in) { buffer.push_back(in); last_io_size += 1; };
+	uint16_t read();
+	void write(uint16_t in) { buffer.push_back(in); last_io_size += 1; };
+
+	void check_eof() { if (buffer.empty()) state |= eofbit; }
 
 	void dasm_arg(uint8_t arg, bool is_a, std::string& ret);
 
-	std::deque<uint16_t> buffer;
+	buf_type buffer;
 	size_t last_io_size;
+	iostate state;
+};
+
+class dcpu16_asm_error :public std::runtime_error
+{
+public:
+	dcpu16_asm_error(dcpu16_asm::iostate _state) :std::runtime_error("Internal assembler error"), state(_state) {}
+	dcpu16_asm::iostate rdstate() { return state; }
+private:
+	dcpu16_asm::iostate state;
 };
 
 #endif	//_H_ASM

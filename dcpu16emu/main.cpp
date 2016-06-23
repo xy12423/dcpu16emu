@@ -67,7 +67,7 @@ void dump(const std::string& arg)
 			uint16_t val;
 			cpu.get_mem(add, val);
 			printf("%04X ", val);
-			add++;
+			add += 1;
 			if (add >= 0x10000)
 			{
 				add = 0;
@@ -100,32 +100,30 @@ void unasm(int32_t _add = -1)
 	uint16_t end = add + 0x40, val;
 	unsigned int tmp;
 	std::string ins;
+
+	assembler.clear_buf();
+	assembler.clear();
 	for (; add < end; )
 	{
 		tmp = add;
-		printf("%04X:", tmp);
-		for (; assembler.size() < 3; add++)
+		for (; assembler.rdbuf().size() < 3; add += 1)
 		{
 			cpu.get_mem(add, val);
-			if (val == 0)
-				break;
 			assembler.write(&val, 1);
 		}
 		ins.clear();
 		assembler.read(ins);
-		if (assembler.gcount() != 0)
+
+		if (assembler.good())
 		{
+			printf("%04X:", tmp);
 			std::cout << ins << std::endl;
 		}
 		else
 		{
-			std::cout << std::endl;
 			break;
 		}
-		if (val == 0)
-			break;
 	}
-	assembler.clear();
 }
 
 void enter(std::vector<std::string>::iterator begin, const std::vector<std::string>::iterator& end)
@@ -133,7 +131,7 @@ void enter(std::vector<std::string>::iterator begin, const std::vector<std::stri
 	uint32_t add = static_cast<uint32_t>(std::stoul(*begin++, 0, 0));
 	if (begin == end)
 		return;
-	for (; begin != end && add < 0x10000; begin++)
+	for (; begin != end && add < 0x10000; ++begin)
 		cpu.set_mem(add++, static_cast<uint16_t>(std::stoul(*begin, 0, 0)));
 	return;
 }
@@ -141,8 +139,13 @@ void enter(std::vector<std::string>::iterator begin, const std::vector<std::stri
 void load(const std::string& path)
 {
 	std::ifstream fin(path, std::ios::in | std::ios::binary);
+	if (!fin || !fin.is_open())
+	{
+		std::cout << "\t^ Error" << std::endl;
+		return;
+	}
 	uint16_t val;
-	for (uint32_t add = 0; add < 0x10000; add++)
+	for (uint32_t add = 0; add < 0x10000; add += 1)
 	{
 		fin.read(reinterpret_cast<char*>(&val), sizeof(val));
 		cpu.set_mem(add, val);
@@ -153,8 +156,13 @@ void load(const std::string& path)
 void save(const std::string& path)
 {
 	std::ofstream fout(path, std::ios::out | std::ios::binary);
+	if (!fout || !fout.is_open())
+	{
+		std::cout << "\t^ Error" << std::endl;
+		return;
+	}
 	uint16_t val;
-	for (uint32_t add = 0; add < 0x10000; add++)
+	for (uint32_t add = 0; add < 0x10000; add += 1)
 	{
 		cpu.get_mem(add, val);
 		fout.write(reinterpret_cast<char*>(&val), sizeof(val));
@@ -183,9 +191,10 @@ void trace()
 	cpu.get_reg(dcpu16::REG_PC, pc);
 	for (int i = 0; i < 3; i++)
 		cpu.get_mem(pc + i, ins[i]);
+	assembler.clear_buf();
+	assembler.clear();
 	assembler.write(ins, 3);
 	assembler.read(ins_str);
-	assembler.clear();
 	registers();
 	std::cout << "Next:" << ins << std::endl;
 }
@@ -212,7 +221,7 @@ int main()
 			int state = 0;
 			std::string::iterator itr = cmd.begin(), itr2 = cmd.begin(), itr_end = cmd.end();
 
-			for (; itr2 != itr_end; itr2++)
+			for (; itr2 != itr_end; ++itr2)
 			{
 				if (state == 0 && *itr2 != ' ')
 				{

@@ -107,12 +107,12 @@ void dcpu16_asm::dasm_arg(uint8_t arg, bool is_a, std::string& ret)
 	if (is_a)
 	{
 		if (arg > 0x3F)
-			throw(dcpu16_asm_error());
+			throw(dcpu16_asm_error(badbit));
 	}
 	else
 	{
 		if (arg > 0x1F)
-			throw(dcpu16_asm_error());
+			throw(dcpu16_asm_error(badbit));
 	}
 
 	if (0x0 <= arg && arg <= 0x7)
@@ -128,9 +128,7 @@ void dcpu16_asm::dasm_arg(uint8_t arg, bool is_a, std::string& ret)
 		ret.push_back('[');
 		ret.append(reg_str[arg - 0x10]);
 		ret.append(" + ");
-		uint16_t shift;
-		read(shift);
-		ret.append(toHEX(shift));
+		ret.append(toHEX(read()));
 		ret.push_back(']');
 	}
 	else if (0x20 <= arg && arg <= 0x3F)
@@ -150,9 +148,7 @@ void dcpu16_asm::dasm_arg(uint8_t arg, bool is_a, std::string& ret)
 				break;
 			case 0x1A:
 				ret.append("PICK ");
-				uint16_t shift;
-				read(shift);
-				ret.append(toHEX(shift));
+				ret.append(toHEX(read()));
 				break;
 			case 0x1B:
 				ret.append("SP");
@@ -166,30 +162,50 @@ void dcpu16_asm::dasm_arg(uint8_t arg, bool is_a, std::string& ret)
 			case 0x1E:
 			{
 				ret.push_back('[');
-				uint16_t shift;
-				read(shift);
-				ret.append(toHEX(shift));
+				ret.append(toHEX(read()));
 				ret.push_back(']');
 				break;
             }
 			case 0x1F:
 			{
-				uint16_t shift;
-				read(shift);
-				ret.append(toHEX(shift));
+				ret.append(toHEX(read()));
 				break;
             }
 			default:
-				throw(dcpu16_asm_error());
+				throw(dcpu16_asm_error(badbit));
 		}
 	}
+}
+
+uint16_t dcpu16_asm::read()
+{
+	if (buffer.empty())
+		throw(dcpu16_asm_error(eofbit | failbit));
+	uint16_t out = buffer.front();
+	buffer.pop_front();
+	last_io_size += 1;
+	return out;
+}
+
+void dcpu16_asm::read(uint16_t* out, size_t size)
+{
+	last_io_size = std::min(size, buffer.size());
+	buf_type::iterator itr = buffer.begin();
+	for (size_t i = 0; i < last_io_size; ++out, ++itr)
+		*out = *itr;
+	buffer.erase(buffer.begin(), buffer.begin() + last_io_size);
+	check_eof();
 }
 
 void dcpu16_asm::read(std::string& out)
 {
 	last_io_size = 0;
 	if (buffer.empty())
+	{
+		state |= eofbit;
+		state |= failbit;
 		return;
+	}
 	dcpu16::instruction ins = buffer.front();
 	buffer.pop_front();
 	last_io_size += 1;
@@ -197,46 +213,31 @@ void dcpu16_asm::read(std::string& out)
 	try
 	{
 		uint8_t type = 0;
-		uint8_t op = 0, b = 0, a = 0;
 		if (ins.op != 0)
-		{
 			type = 3;
-			op = ins.op;
-			b = ins.b;
-			a = ins.a;
-		}
 		else if (ins.b != 0)
-		{
 			type = 2;
-			op = ins.b;
-			a = ins.a;
-		}
 		else if (ins.a != 0)
-		{
 			type = 1;
-			op = ins.a;
-		}
 		else
-		{
-			throw(dcpu16_asm_error());
-		}
+			throw(dcpu16_asm_error(failbit));
 
 		switch (type)
 		{
 			case 3:
-				if (op_str_3[op] == nullptr)
-					throw(dcpu16_asm_error());
-				out.append(op_str_3[op]);
+				if (op_str_3[ins.op] == nullptr)
+					throw(dcpu16_asm_error(failbit));
+				out.append(op_str_3[ins.op]);
 				break;
 			case 2:
-				if (op_str_2[op] == nullptr)
-					throw(dcpu16_asm_error());
-				out.append(op_str_2[op]);
+				if (op_str_2[ins.b] == nullptr)
+					throw(dcpu16_asm_error(failbit));
+				out.append(op_str_2[ins.b]);
 				break;
 			case 1:
-				if (op_str_1[op] == nullptr)
-					throw(dcpu16_asm_error());
-				out.append(op_str_1[op]);
+				if (op_str_1[ins.a] == nullptr)
+					throw(dcpu16_asm_error(failbit));
+				out.append(op_str_1[ins.a]);
 				break;
 		}
 
@@ -244,20 +245,23 @@ void dcpu16_asm::read(std::string& out)
 		{
 			case 3:
 				out.push_back(' ');
-				dasm_arg(b, false, out);
+				dasm_arg(ins.b, false, out);
 				out.append(", ");
-				dasm_arg(a, true, out);
+				dasm_arg(ins.a, true, out);
 				break;
 			case 2:
 				out.push_back(' ');
-				dasm_arg(a, true, out);
+				dasm_arg(ins.a, true, out);
 				break;
 		}
+
+		check_eof();
 	}
-	catch (dcpu16_asm_error &)
+	catch (dcpu16_asm_error &ex)
 	{
 		out.append("DAT ");
 		out.append(toHEX(ins));
+		state |= ex.rdstate();
 	}
 }
 
@@ -265,5 +269,17 @@ void dcpu16_asm::read(std::ostream& out)
 {
 	std::string tmp;
 	read(tmp);
-	out.write(tmp.data(), tmp.size());
+	while (good())
+	{
+		tmp.push_back('\n');
+		out.write(tmp.data(), tmp.size());
+		tmp.clear();
+		read(tmp);
+	}
+}
+
+void dcpu16_asm::write(const uint16_t* in, size_t size)
+{
+	buffer.insert(buffer.end(), in, in + size);
+	last_io_size = size;
 }

@@ -442,14 +442,14 @@ int dcpu16::do_3(const instruction& ins)
 			break;
 		case 0x1E:
 			res = a;
-			reg[REG_I]++;
-			reg[REG_J]++;
+			reg[REG_I] += 1;
+			reg[REG_J] += 1;
 			cycle += 2;
 			break;
 		case 0x1F:
 			res = a;
-			reg[REG_I]--;
-			reg[REG_J]--;
+			reg[REG_I] -= 1;
+			reg[REG_J] -= 1;
 			cycle += 2;
 			break;
 		default:

@@ -97,7 +97,7 @@ void unasm(int32_t _add = -1)
 	if (_add != -1)
 		add = static_cast<uint16_t>(_add);
 
-	uint16_t end = add + 0x40, val;
+	uint16_t end = add + 0x40, val, display_add = add;
 	unsigned int tmp;
 	std::string ins;
 
@@ -105,7 +105,7 @@ void unasm(int32_t _add = -1)
 	assembler.clear();
 	for (; add < end; )
 	{
-		tmp = add;
+		tmp = display_add;
 		for (; assembler.rdbuf().size() < 3; add += 1)
 		{
 			cpu.get_mem(add, val);
@@ -113,17 +113,49 @@ void unasm(int32_t _add = -1)
 		}
 		ins.clear();
 		assembler.read(ins);
+		display_add += static_cast<uint16_t>(assembler.gcount());
 
-		if (assembler.good())
+		if (assembler.fail())
+		{
+			break;
+		}
+		else
 		{
 			printf("%04X:", tmp);
 			std::cout << ins << std::endl;
 		}
+	}
+}
+
+void assemble(int32_t _add = -1)
+{
+	static uint16_t add = 0;
+	std::string ins;
+	if (_add != -1)
+		add = _add;
+	uint16_t buf[3];
+	while (true)
+	{
+		printf("%04X:", add);
+		std::getline(std::cin, ins);
+		if (ins.empty())
+			break;
+
+		assembler.clear_buf();
+		assembler.clear();
+		assembler.write(ins);
+		if (assembler.fail())
+		{
+			std::cout << "\t^ Error" << std::endl;
+		}
 		else
 		{
-			break;
+			assembler.read(buf, assembler.rdbuf().size());
+			for (size_t i = 0; i < assembler.gcount(); i++, add++)
+				cpu.set_mem(add, buf[i]);
 		}
 	}
+	return;
 }
 
 void enter(std::vector<std::string>::iterator begin, const std::vector<std::string>::iterator& end)
@@ -287,6 +319,21 @@ int main()
 					try
 					{
 						unasm(std::stoi(argv[1], 0, 0));
+					}
+					catch (std::out_of_range &) { std::cout << "\t^ Error" << std::endl; }
+					catch (std::invalid_argument &) { std::cout << "\t^ Error" << std::endl; }
+				}
+				break;
+			case 'a':
+				if (argv.size() < 2)
+				{
+					assemble();
+				}
+				else
+				{
+					try
+					{
+						assemble(std::stoi(argv[1], 0, 0));
 					}
 					catch (std::out_of_range &) { std::cout << "\t^ Error" << std::endl; }
 					catch (std::invalid_argument &) { std::cout << "\t^ Error" << std::endl; }

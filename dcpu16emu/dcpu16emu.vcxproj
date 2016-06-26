@@ -147,6 +147,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="asm.h" />
+    <ClInclude Include="asm_yacc.h" />
     <ClInclude Include="cpu.h" />
     <ClInclude Include="main.h" />
     <ClInclude Include="stdafx.h" />
@@ -154,6 +155,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="asm.cpp" />
+    <ClCompile Include="asm_yacc.cpp" />
     <ClCompile Include="cpu.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="stdafx.cpp">

@@ -30,6 +30,9 @@
     <ClInclude Include="asm.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="asm_yacc.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="cpu.cpp">
@@ -45,6 +48,9 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="asm.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="asm_yacc.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

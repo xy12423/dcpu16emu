@@ -6,12 +6,11 @@
 class dcpu16_asm
 {
 public:
-	enum asm_err
+	struct inter_instruction
 	{
-		ERR_ASM_NOERR,
-		ERR_ASM_OTHER,
-
-		ERR_ASM_UNRECOGNIZED,
+		inter_instruction() :ins(0), a(0), b(0) {}
+		dcpu16::instruction ins;
+		uint16_t a, b;
 	};
 
 	typedef std::ios_base::iostate iostate;
@@ -39,15 +38,18 @@ public:
 	void clear() { state = 0; }
 	bool good() const { return state == 0; }
 	bool bad() const { return (state & badbit) != 0; }
-	bool fail() const { return (state & failbit) != 0; }
+	bool fail() const { return (state & failbit) != 0 || (state & badbit) != 0; }
 	bool eof() const { return (state & eofbit) != 0; }
 
 	size_t gcount() { return last_io_size; };
 private:
-	uint16_t read();
-	void write(uint16_t in) { buffer.push_back(in); last_io_size += 1; };
+	uint16_t get();
+	void put(uint16_t in) { buffer.push_back(in); last_io_size += 1; };
 
 	void check_eof() { if (buffer.empty()) state |= eofbit; }
+
+	void asm_ins(const char** itr, const char* itr_end, inter_instruction& ret);
+	void asm_arg(const char* itr, const char* itr_end, bool is_a, inter_instruction& ret);
 
 	void dasm_arg(uint8_t arg, bool is_a, std::string& ret);
 

@@ -25,11 +25,9 @@ public:
 
 	void read(uint16_t* out, size_t size);
 	void read(std::string& out);
-	void read(std::ostream& out);
 
 	void write(const uint16_t* in, size_t size);
 	void write(const std::string& in);
-	void write(std::istream& in);
 
 	const buf_type& rdbuf() const { return buffer; }
 	buf_type& rdbuf() { return buffer; }

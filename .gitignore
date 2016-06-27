@@ -244,7 +244,9 @@ ModelManifest.xml
 # FAKE - F# Make
 .fake/
 
-# Data files
+# Data files and Plugins
+plugins.txt
 *.ddm
 *.das
 *.dfd
+*.dll

@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "cpu.h"
 #include "asm.h"
+#include "plugin.h"
 #include "utils.h"
 #include "main.h"
 
@@ -12,6 +13,7 @@ dcpu16_asm assembler;
 volatile bool running = false;
 std::atomic_int cycles_available(0);
 std::shared_ptr<std::promise<void>> cycle_promise;
+std::shared_ptr<std::promise<void>> stop_promise;
 
 void run_worker()
 {
@@ -19,9 +21,9 @@ void run_worker()
 	{
 		if (cycles_available <= 0)
 		{
-			cycle_promise = std::make_shared<std::promise<void>>();
-			cycle_promise->get_future().get();
-			cycle_promise.reset();
+			std::shared_ptr<std::promise<void>> _cycle_promise = std::make_shared<std::promise<void>>();
+			cycle_promise = _cycle_promise;
+			_cycle_promise->get_future().get();
 		}
 		int cycle = cpu.step();
 		if (cycle < 0)
@@ -47,10 +49,14 @@ void run_timer()
 	{
 		cycles_available += cycles_per_tick;
 		if (cycle_promise)
+		{
 			cycle_promise->set_value();
+			cycle_promise.reset();
+		}
 		time += interval;
 		std::this_thread::sleep_until(time);
 	}
+	stop_promise->set_value();
 }
 
 void dump(const std::string& arg)
@@ -228,11 +234,26 @@ void trace()
 	assembler.write(ins, 3);
 	assembler.read(ins_str);
 	registers();
-	std::cout << "Next:" << ins << std::endl;
+	std::cout << "Next:" << ins_str << std::endl;
+}
+
+void load_plugins(const char* file)
+{
+	std::wifstream fin(file);
+	if (!fin.is_open())
+		return;
+	std::wstring line;
+	std::getline(fin, line);
+	while (!fin.eof())
+	{
+		load_plugin(line);
+		std::getline(fin, line);
+	}
 }
 
 int main()
 {
+	load_plugins("plugins.txt");
 	std::string cmd;
 	std::vector<std::string> argv;
 	bool exiting = false;
@@ -358,16 +379,43 @@ int main()
 					save(argv[1]);
 				break;
 			case 'p':
+				if (argv.size() > 1)
+				{
+					try
+					{
+						cpu.set_reg(dcpu16::REG_PC, std::stoi(argv[1], 0, 0));
+					}
+					catch (std::out_of_range &) { std::cout << "\t^ Error" << std::endl; break; }
+					catch (std::invalid_argument &) { std::cout << "\t^ Error" << std::endl; break; }
+				}
+				stop_promise = std::make_shared<std::promise<void>>();
 				proceed();
 				getchar();
 				running = false;
+				stop_promise->get_future().get();
+				stop_promise.reset();
+				if (cycle_promise)
+				{
+					cycle_promise->set_value();
+					cycle_promise.reset();
+				}
 				break;
 			case 't':
+				if (argv.size() > 1)
+				{
+					try
+					{
+						cpu.set_reg(dcpu16::REG_PC, std::stoi(argv[1], 0, 0));
+					}
+					catch (std::out_of_range &) { std::cout << "\t^ Error" << std::endl; break; }
+					catch (std::invalid_argument &) { std::cout << "\t^ Error" << std::endl; break; }
+				}
 				trace();
 				break;
 			default:
 				std::cout << "\t^ Error" << std::endl;
 		}
 	}
+	unload_plugin();
 	return 0;
 }

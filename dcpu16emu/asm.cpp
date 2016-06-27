@@ -371,19 +371,6 @@ void dcpu16_asm::read(std::string& out)
 	}
 }
 
-void dcpu16_asm::read(std::ostream& out)
-{
-	std::string tmp;
-	read(tmp);
-	while (good())
-	{
-		tmp.push_back('\n');
-		out.write(tmp.data(), tmp.size());
-		tmp.clear();
-		read(tmp);
-	}
-}
-
 void dcpu16_asm::write(const uint16_t* in, size_t size)
 {
 	buffer.insert(buffer.end(), in, in + size);

@@ -55,14 +55,13 @@ public:
 	{
 		typedef uint16_t(*fHWInt)();
 
+		hardware(uint16_t _a, uint16_t _b, uint16_t _c, uint16_t _x, uint16_t _y, fHWInt _int)
+			:a(_a), b(_b), c(_c), x(_x), y(_y), interrupt(_int)
+		{};
+
 		uint16_t a, b, c, x, y;
 		fHWInt interrupt;
 	};
-
-	typedef uint16_t(*fGetHWCount)();
-	typedef hardware(*fGetInfo)(int n);
-	typedef void(*fSetHandle)(void *, void *, void *, void *, void *);
-	typedef uint32_t(*fInit)();
 
 	enum emu_err
 	{
@@ -87,6 +86,9 @@ public:
 	bool set_mem(uint16_t ptr, uint16_t val);
 	bool get_reg(int reg_id, uint16_t& ret);
 	bool get_mem(uint16_t ptr, uint16_t& ret);
+	int interrupt(uint16_t _int) { return add_itr(_int); }
+
+	void add_hardware(const hardware& hw) { hw_table.push_back(hw); };
 
 	bool pcOf = false;
 

@@ -291,8 +291,8 @@ int dcpu16::do_3(const instruction& ins)
 		return -ERR_EMU_READ;
 	cycle += cycle_t;
 
-	uint32_t res = 0;
 	uint16_t a = a_real.get(this), b = b_real.get(this);
+	uint32_t res = b;
 	switch (ins.op)
 	{
 		case 0x01:
@@ -392,12 +392,12 @@ int dcpu16::do_3(const instruction& ins)
 			break;
 		case 0x10:
 			cycle += 2;
-			if ((b&a) == 0)
+			if ((b & a) == 0)
 				cycle += skip();
 			break;
 		case 0x11:
 			cycle += 2;
-			if ((b&a) != 0)
+			if ((b & a) != 0)
 				cycle += skip();
 			break;
 		case 0x12:
@@ -656,6 +656,8 @@ int dcpu16::write_b(uint8_t b, const operand& old, uint16_t val)
 				break;
 			case 0x1E:
 				mem[old.val] = val;
+			case 0x1F:
+				break;
 			default:
 				return -1;
 		}

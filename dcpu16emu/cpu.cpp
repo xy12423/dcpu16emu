@@ -146,6 +146,19 @@ bool dcpu16::get_mem(uint16_t ptr, uint16_t& ret)
 	return true;
 }
 
+void dcpu16::reset()
+{
+	memset(reg, 0, sizeof(reg));
+	pc = 0;
+	sp = 0;
+	ex = 0;
+	ia = 0;
+	memset(mem.get(), 0, sizeof(uint16_t) * 0x10000);
+	for (const hardware& hd : hw_table)
+		if (hd.init != nullptr)
+			hd.init();
+}
+
 int dcpu16::step()
 {
 	instruction code = mem[pc++];

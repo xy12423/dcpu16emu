@@ -164,8 +164,9 @@ void assemble(int32_t _add = -1)
 	return;
 }
 
-void enter(std::vector<std::string>::iterator begin, const std::vector<std::string>::iterator& end)
+void enter(const std::vector<std::string>::iterator& _begin, const std::vector<std::string>::iterator& end)
 {
+	std::vector<std::string>::iterator begin = _begin;
 	uint32_t add = static_cast<uint32_t>(std::stoul(*begin++, 0, 0));
 	if (begin == end)
 		return;
@@ -249,6 +250,11 @@ void load_plugins(const char* file)
 		load_plugin(line);
 		std::getline(fin, line);
 	}
+}
+
+void init()
+{
+	cpu.reset();
 }
 
 int main()
@@ -411,6 +417,9 @@ int main()
 					catch (std::invalid_argument &) { std::cout << "\t^ Error" << std::endl; break; }
 				}
 				trace();
+				break;
+			case 'i':
+				init();
 				break;
 			default:
 				std::cout << "\t^ Error" << std::endl;

@@ -88,7 +88,8 @@ int load_plugin(const std::wstring& plugin_full_path)
 				*reinterpret_cast<uint16_t*>(buffer + sizeof(uint16_t) * 2),
 				*reinterpret_cast<uint16_t*>(buffer + sizeof(uint16_t) * 3),
 				*reinterpret_cast<uint16_t*>(buffer + sizeof(uint16_t) * 4),
-				*reinterpret_cast<dcpu16::hardware::fHWInt*>(buffer + sizeof(uint16_t) * 5)
+				*reinterpret_cast<dcpu16::hardware::fHWInt*>(buffer + sizeof(uint16_t) * 5),
+				init
 				));
 		}
 		setHandle(setMem, getMem, setReg, getReg, addItr);

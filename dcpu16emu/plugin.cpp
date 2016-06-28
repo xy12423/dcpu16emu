@@ -5,18 +5,21 @@
 extern dcpu16 cpu;
 
 typedef std::unique_ptr<wxDynamicLibrary> lib_ptr;
-std::unordered_set<lib_ptr> plugins;
+std::vector<lib_ptr> plugins;
 
 typedef uint16_t(*fGetHWCount)();
 typedef void(*fGetInfo)(uint16_t n, char*);
 typedef void(*fSetHandle)(int32_t(uint16_t, uint16_t), int32_t(uint16_t, uint16_t*), int32_t(uint16_t, uint16_t), int32_t(uint16_t, uint16_t*), int32_t(uint16_t));
-typedef int32_t(*fInit)();
+typedef dcpu16::hardware::fInit fInit;
+typedef void(*fStop)();
+std::vector<fStop> OnStop;
 
 enum ExportFunc {
 	GetHWCount,
 	GetInfo,
 	SetHandle,
 	Init,
+	Stop,
 
 	ExportFuncCount
 };
@@ -25,6 +28,7 @@ std::wstring ExportFuncName[ExportFuncCount] = {
 	wxT("GetInfo"),
 	wxT("SetHandle"),
 	wxT("Init"),
+	wxT("Stop"),
 };
 
 int32_t setMem(uint16_t add, uint16_t val)
@@ -51,7 +55,7 @@ int32_t getReg(uint16_t _reg, uint16_t *val)
 	return 0;
 }
 
-int32_t addItr(uint16_t _itr)
+int32_t addInt(uint16_t _itr)
 {
 	return cpu.interrupt(_itr);
 }
@@ -64,7 +68,7 @@ int load_plugin(const std::wstring& plugin_full_path)
 		if (!plugin->IsLoaded())
 			throw(plugin_loading_error());	//Plugin not loaded
 
-		//Load basic symbols
+		//Load symbols
 		void *ExportFuncPtr[ExportFuncCount];
 		for (int i = 0; i < ExportFuncCount; i++)
 		{
@@ -76,6 +80,7 @@ int load_plugin(const std::wstring& plugin_full_path)
 		fGetInfo getInfo = reinterpret_cast<fGetInfo>(ExportFuncPtr[GetInfo]);
 		fSetHandle setHandle = reinterpret_cast<fSetHandle>(ExportFuncPtr[SetHandle]);
 		fInit init = reinterpret_cast<fInit>(ExportFuncPtr[Init]);
+		fStop stop = reinterpret_cast<fStop>(ExportFuncPtr[Stop]);
 		char buffer[sizeof(uint16_t) * 5 + sizeof(dcpu16::hardware::fHWInt*)];
 
 		uint16_t hwCount = getHWCount();
@@ -92,9 +97,10 @@ int load_plugin(const std::wstring& plugin_full_path)
 				init
 				));
 		}
-		setHandle(setMem, getMem, setReg, getReg, addItr);
+		setHandle(setMem, getMem, setReg, getReg, addInt);
 
-		const lib_ptr &plugin_ref = *(plugins.emplace(std::move(plugin)).first);
+		plugins.push_back(std::move(plugin));
+		lib_ptr &plugin_ref = plugins.back();
 
 		if (init != nullptr)
 		{
@@ -118,5 +124,8 @@ int load_plugin(const std::wstring& plugin_full_path)
 
 void unload_plugin()
 {
+	for (const fStop& stop : OnStop)
+		if (stop != nullptr)
+			stop();
 	plugins.clear();
 }

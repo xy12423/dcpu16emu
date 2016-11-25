@@ -111,6 +111,9 @@ int load_plugin(const std::wstring& plugin_full_path)
 			catch (...) {}
 		}
 
+		if (stop != nullptr)
+			OnStop.push_back(stop);
+
 		std::cout << "Plugin loaded:" << wxConvLocal.cWC2MB(plugin_full_path.c_str()) << std::endl;
 	}
 	catch (plugin_loading_error &) { return 1; }
@@ -125,7 +128,6 @@ int load_plugin(const std::wstring& plugin_full_path)
 void unload_plugin()
 {
 	for (const fStop& stop : OnStop)
-		if (stop != nullptr)
-			stop();
+		stop();
 	plugins.clear();
 }

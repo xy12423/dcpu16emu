@@ -40,10 +40,10 @@ void run_timer()
 {
 	auto time = std::chrono::high_resolution_clock::now();
 
-	const size_t cycles_per_sec = 100000;
-	const intmax_t lcm = _lcm<cycles_per_sec, std::chrono::high_resolution_clock::period::den>::value;
-	const size_t cycles_per_tick = std::chrono::high_resolution_clock::period::num * (lcm / std::chrono::high_resolution_clock::period::den);
-	const std::chrono::high_resolution_clock::duration interval(lcm / cycles_per_sec);
+	constexpr size_t cycles_per_sec = 100000;
+	constexpr intmax_t lcm = _lcm<cycles_per_sec, std::chrono::high_resolution_clock::period::den>::value;
+	constexpr size_t cycles_per_tick = std::chrono::high_resolution_clock::period::num * (lcm / std::chrono::high_resolution_clock::period::den);
+	constexpr std::chrono::high_resolution_clock::duration interval(lcm / cycles_per_sec);
 
 	while (running)
 	{

@@ -73,24 +73,31 @@ term : arg { proc->result = $1; }
 
 uint8_t read_reg(char reg)
 {
-	reg = toupper(reg);
 	switch (reg)
 	{
 		case 'A':
+		case 'a':
 			return 0;
 		case 'B':
+		case 'b':
 			return 1;
 		case 'C':
+		case 'c':
 			return 2;
 		case 'X':
+		case 'x':
 			return 3;
 		case 'Y':
+		case 'y':
 			return 4;
 		case 'Z':
+		case 'z':
 			return 5;
 		case 'I':
+		case 'i':
 			return 6;
 		case 'J':
+		case 'j':
 			return 7;
 	}
 	throw(dcpu16_asm_error(dcpu16_asm::failbit));

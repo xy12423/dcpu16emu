@@ -19,6 +19,8 @@ public:
 		REG_SP,
 		REG_EX,
 		REG_IA,
+
+		REG_END
 	};
 
 	struct instruction

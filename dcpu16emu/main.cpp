@@ -63,7 +63,14 @@ void dump(const std::string& arg)
 {
 	static uint32_t add = 0;
 	if (!arg.empty())
-		add = static_cast<uint32_t>(std::stoul(arg, 0, 0));
+	{
+		try
+		{
+			add = static_cast<uint32_t>(std::stoul(arg, 0, 0));
+		}
+		catch (std::out_of_range &) { std::cout << "\t^ Error" << std::endl; }
+		catch (std::invalid_argument &) { std::cout << "\t^ Error" << std::endl; }
+	}
 	int i, j;
 	for (i = 0; i < 8; i++)
 	{
@@ -86,15 +93,83 @@ void dump(const std::string& arg)
 	return;
 }
 
-void registers()
+inline bool equ_letter(char ch1, const char ch2)
 {
-	uint16_t reg[12];
-	for (int i = 0; i < 12; i++)
-		cpu.get_reg(i, reg[i]);
-	printf("A=%04X\tB=%04X\tC=%04X\tX=%04X\tY=%04X\tZ=%04X\tI=%04X\tJ=%04X\t", reg[0], reg[1], reg[2], reg[3], reg[4], reg[5], reg[6], reg[7]);
-	std::cout << std::endl;
-	printf("PC=%04X\tSP=%04X\tEX=%04X\tIA=%04X\t", reg[8], reg[9], reg[10], reg[11]);
-	std::cout << std::endl;
+	return (ch1 | 0x20) == ch2;
+}
+
+void registers(const std::string& arg, uint16_t val = 0)
+{
+	if (arg.empty())
+	{
+		uint16_t reg[12];
+		for (int i = 0; i < 12; i++)
+			cpu.get_reg(i, reg[i]);
+		printf("A=%04X\tB=%04X\tC=%04X\tX=%04X\tY=%04X\tZ=%04X\tI=%04X\tJ=%04X\t", reg[0], reg[1], reg[2], reg[3], reg[4], reg[5], reg[6], reg[7]);
+		std::cout << std::endl;
+		printf("PC=%04X\tSP=%04X\tEX=%04X\tIA=%04X\t", reg[8], reg[9], reg[10], reg[11]);
+		std::cout << std::endl;
+	}
+	else
+	{
+		int reg_id = -1;
+		if (arg.size() == 1)
+		{
+			switch (arg.front())
+			{
+				case 'A':
+				case 'a':
+					reg_id = dcpu16::REG_A;
+					break;
+				case 'B':
+				case 'b':
+					reg_id = dcpu16::REG_B;
+					break;
+				case 'C':
+				case 'c':
+					reg_id = dcpu16::REG_C;
+					break;
+				case 'X':
+				case 'x':
+					reg_id = dcpu16::REG_X;
+					break;
+				case 'Y':
+				case 'y':
+					reg_id = dcpu16::REG_Y;
+					break;
+				case 'Z':
+				case 'z':
+					reg_id = dcpu16::REG_Z;
+					break;
+				case 'I':
+				case 'i':
+					reg_id = dcpu16::REG_I;
+					break;
+				case 'J':
+				case 'j':
+					reg_id = dcpu16::REG_J;
+					break;
+				default:
+					throw(std::invalid_argument("Invalid register"));
+			}
+		}
+		else if (arg.size() == 2)
+		{
+			if (equ_letter(arg.front(), 'p') && equ_letter(arg.back(), 'c'))
+				reg_id = dcpu16::REG_PC;
+			else if (equ_letter(arg.front(), 's') && equ_letter(arg.back(), 'p'))
+				reg_id = dcpu16::REG_SP;
+			else if (equ_letter(arg.front(), 'e') && equ_letter(arg.back(), 'x'))
+				reg_id = dcpu16::REG_EX;
+			else if (equ_letter(arg.front(), 'i') && equ_letter(arg.back(), 'a'))
+				reg_id = dcpu16::REG_IA;
+			else
+				throw(std::invalid_argument("Invalid register"));
+		}
+		if (reg_id < 0 || reg_id >= dcpu16::REG_END)
+			return;
+		cpu.set_reg(reg_id, val);
+	}
 }
 
 void unasm(int32_t _add = -1)
@@ -167,11 +242,16 @@ void assemble(int32_t _add = -1)
 void enter(const std::vector<std::string>::iterator& _begin, const std::vector<std::string>::iterator& end)
 {
 	std::vector<std::string>::iterator begin = _begin;
-	uint32_t add = static_cast<uint32_t>(std::stoul(*begin++, 0, 0));
-	if (begin == end)
-		return;
-	for (; begin != end && add < 0x10000; ++begin)
-		cpu.set_mem(add++, static_cast<uint16_t>(std::stoul(*begin, 0, 0)));
+	try
+	{
+		uint32_t add = static_cast<uint32_t>(std::stoul(*begin++, 0, 0));
+		if (begin == end)
+			return;
+		for (; begin != end && add < 0x10000; ++begin)
+			cpu.set_mem(add++, static_cast<uint16_t>(std::stoul(*begin, 0, 0)));
+	}
+	catch (std::out_of_range &) { std::cout << "\t^ Error" << std::endl; }
+	catch (std::invalid_argument &) { std::cout << "\t^ Error" << std::endl; }
 	return;
 }
 
@@ -234,7 +314,7 @@ void trace()
 	assembler.clear();
 	assembler.write(ins, 3);
 	assembler.read(ins_str);
-	registers();
+	registers(empty_string);
 	std::cout << "Next:" << ins_str << std::endl;
 }
 
@@ -334,7 +414,19 @@ int main()
 					dump(argv[1]);
 				break;
 			case 'r':
-				registers();
+				if (argv.size() < 3)
+				{
+					registers(empty_string);
+				}
+				else
+				{
+					try
+					{
+						registers(argv[1], std::stoi(argv[2]));
+					}
+					catch (std::out_of_range &) { std::cout << "\t^ Error" << std::endl; }
+					catch (std::invalid_argument &) { std::cout << "\t^ Error" << std::endl; }
+				}
 				break;
 			case 'u':
 				if (argv.size() < 2)

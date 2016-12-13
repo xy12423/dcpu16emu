@@ -1458,7 +1458,7 @@ yyreduce:
 
   case 34:
 #line 63 "asm.y" /* yacc.c:1646  */
-    { (yyval).res = 0x1F; (yyval).data = (yyvsp[0]).data; }
+    { if (proc->is_a && static_cast<uint16_t>((yyvsp[0]).data + 1) <= 0x1F) { (yyval).res = (yyvsp[0]).data + 0x21; } else { (yyval).res = 0x1F; (yyval).data = (yyvsp[0]).data; } }
 #line 1463 "asm_yacc.cpp" /* yacc.c:1646  */
     break;
 
@@ -1946,4 +1946,3 @@ void yyerror(asm_yacc_proc* proc, const char* err)
 {
 	throw(dcpu16_asm_error(dcpu16_asm::failbit));
 }
-

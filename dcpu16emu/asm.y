@@ -60,7 +60,7 @@ stack_op : PUSH { if (proc->is_a) YYABORT; $$.res = 0x18; }
  | PEEK { $$.res = 0x19; }
  | PICK const { $$.res = 0x1A; $$.data = $2.data; }
 ;
-arg : const { $$.res = 0x1F; $$.data = $1.data; }
+arg : const { if (proc->is_a && static_cast<uint16_t>($1.data + 1) <= 0x1F) { $$.res = $1.data + 0x21; } else { $$.res = 0x1F; $$.data = $1.data; } }
  | reg { $$.res = $1.res; }
  | spec_reg { $$.res = $1.res; }
  | addr { $$ = $1; }

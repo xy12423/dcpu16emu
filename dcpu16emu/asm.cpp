@@ -191,10 +191,18 @@ void dcpu16_asm::asm_arg(const char* itr, const char* itr_end, bool is_a, inter_
 	asm_yacc_result &result = proc.result;
 	if (result.res == 0x1F)
 	{
-		if (result.data == 0xFFFF)
-			result.res = 0x20;
-		else if (result.data < 0x1F)
-			result.res = 0x21 + result.data;
+		if (is_a)
+		{
+			if (result.data == 0xFFFF)
+				result.res = 0x20;
+			else if (result.data < 0x1F)
+				result.res = 0x21 + result.data;
+		}
+	}
+	else if (0x10 <= result.res && result.res <= 0x17)
+	{
+		if (result.data == 0)
+			result.res -= 0x8;
 	}
 	if (is_a)
 	{

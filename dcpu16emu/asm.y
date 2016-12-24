@@ -9,13 +9,13 @@ void yyerror(asm_yacc_proc* proc, const char* err);
 
 %define api.pure full
 %param {asm_yacc_proc* proc}
-%token ERR_TOKEN BRACKET_LEFT BRACKET_RIGHT NUMBER ADD SUB MUL DIV MOD SHL SHR AND XOR BOR SUB_LEFT SUB_RIGHT REG SPEC_REG PUSH POP PEEK PICK
+%token ERR_TOKEN BRACKET_LEFT BRACKET_RIGHT NUMBER ADD SUB MUL DIV MOD SHL SHR AND XOR BOR SUB_LEFT SUB_RIGHT REG SPEC_REG REG_SHIFT_ALLOWED PUSH POP PEEK PICK
 %start term
 
 %%
 
 expr_1 : NUMBER { $$.data = $1.data; }
- | BRACKET_LEFT expr_7 BRACKET_RIGHT { $$.data = $2.data; }
+ | BRACKET_LEFT expr_8 BRACKET_RIGHT { $$.data = $2.data; }
 ;
 expr_2 : expr_1 { $$.data = $1.data; }
  | ADD expr_1 { $$.data = $2.data; }
@@ -45,6 +45,7 @@ expr_8 : expr_7 { $$.data = $1.data; }
 const : expr_8 { $$.data = $1.data; }
 ;
 reg : REG { $$.res = $1.res; }
+ | REG_SHIFT_ALLOWED { $$.res = $1.res; }
 ;
 spec_reg : SPEC_REG { $$.res = $1.res; }
 ;
@@ -52,7 +53,7 @@ addr : SUB_LEFT const SUB_RIGHT { $$.res = 0x1E; $$.data = $2.data; }
 ;
 addr_reg : SUB_LEFT reg SUB_RIGHT { $$.res = $2.res + 0x08; }
 ;
-addr_reg_shift : SUB_LEFT reg const SUB_RIGHT { $$.res = $2.res + 0x10; $$.data = $3.data; }
+addr_reg_shift : SUB_LEFT REG_SHIFT_ALLOWED const SUB_RIGHT { $$.res = $2.res + 0x10; $$.data = $3.data; }
  | reg SUB_LEFT const SUB_RIGHT { $$.res = $1.res + 0x10; $$.data = $3.data; }
 ;
 stack_op : PUSH { if (proc->is_a) YYABORT; $$.res = 0x18; }
@@ -60,7 +61,7 @@ stack_op : PUSH { if (proc->is_a) YYABORT; $$.res = 0x18; }
  | PEEK { $$.res = 0x19; }
  | PICK const { $$.res = 0x1A; $$.data = $2.data; }
 ;
-arg : const { if (proc->is_a && static_cast<uint16_t>($1.data + 1) <= 0x1F) { $$.res = $1.data + 0x21; } else { $$.res = 0x1F; $$.data = $1.data; } }
+arg : const { $$.res = 0x1F; $$.data = $1.data; }
  | reg { $$.res = $1.res; }
  | spec_reg { $$.res = $1.res; }
  | addr { $$ = $1; }
@@ -110,6 +111,11 @@ uint16_t read_num(asm_yacc_proc& proc)
 	uint16_t result = static_cast<uint16_t>(std::strtol(itr, &num_end, 0));
 	if (num_end == itr || num_end > itr_end)
 		throw(dcpu16_asm_error(dcpu16_asm::failbit));
+	if (errno == ERANGE)
+	{
+		errno = 0;
+		throw(dcpu16_asm_error(dcpu16_asm::failbit));
+	}
 	proc.itr = num_end;
 	return result;
 }
@@ -196,7 +202,10 @@ int yylex(YYSTYPE* lvalp, asm_yacc_proc* proc)
 		case 'i':
 		case 'j':
 			lvalp->res = read_reg(*itr);
-			result = REG;
+			if (itr + 1 < itr_end && (*(itr + 1) == '+' || *(itr + 1) == '-'))
+				result = REG_SHIFT_ALLOWED;
+			else
+				result = REG;
 			break;
 		case 'P':
 		case 'p':
